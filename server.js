@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import fetch from "node-fetch";
 
 const app = express();
 
@@ -9,16 +8,19 @@ app.use(express.json());
 
 const API_KEY = process.env.API_KEY;
 
-/* ✅ MAIN CHAT ROUTE */
+/* ✅ CHAT ROUTE WITH HISTORY */
 app.post("/chat", async (req, res) => {
   try {
-    const userMessage = req.body.message;
-    const lang = req.body.language || "English";
+    const { message, history = [] } = req.body;
 
-    const prompt = `You are Lily, a professional female customer assistant.
-Respond ONLY in ${lang}.
-Keep response short (max 2 lines).
-Be polite and helpful.`;
+    // 🔥 Build conversation history
+    const contents = [
+      ...history,
+      {
+        role: "user",
+        parts: [{ text: message }],
+      },
+    ];
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
@@ -28,25 +30,22 @@ Be polite and helpful.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: userMessage }],
-            },
-          ],
-          systemInstruction: {
-            parts: [{ text: prompt }],
-          },
+          contents: contents,
         }),
       }
     );
 
     const data = await response.json();
 
-    console.log("Gemini Response:", JSON.stringify(data, null, 2)); // 🔥 debug
+    console.log("FULL RESPONSE:", JSON.stringify(data, null, 2));
 
-    const reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Sorry, I couldn't respond properly.";
+    let reply = "Sorry, I couldn't respond properly.";
+
+    if (
+      data?.candidates?.[0]?.content?.parts?.[0]?.text
+    ) {
+      reply = data.candidates[0].content.parts[0].text;
+    }
 
     res.json({ reply });
 
@@ -56,7 +55,7 @@ Be polite and helpful.`;
   }
 });
 
-/* ✅ SERVER START */
+/* ✅ START SERVER */
 app.listen(10000, () => {
   console.log("Server running on port 10000");
 });
